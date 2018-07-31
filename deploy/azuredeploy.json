@@ -1,0 +1,167 @@
+{
+  "$schema": "https://schema.management.azure.com/schemas/2015-01-01/deploymentTemplate.json#",
+  "contentVersion": "1.0.0.0",
+  "parameters":
+  {
+    "batchAccountName":
+    {      
+      "type": "string"
+    },
+    "storageAccountName":
+    {      
+      "type": "string"
+    },
+    "certThumbprint":
+    {
+      "type": "string"
+    },
+    "certBase64Data":
+    {
+      "defaultValue": "",
+      "type": "securestring"
+    },
+    "certPassword":
+    {
+      "type": "securestring"
+    }    
+  },
+  "variables":
+  {
+    "location": "[resourceGroup().location]",
+    "storageAccountType": "Standard_LRS",
+    "storageAccountId": "[resourceId('Microsoft.Storage/storageAccounts', parameters('storageAccountName'))]",
+    "certName": "[concat('SHA1-',parameters('certThumbprint'))]",
+    "certId": "[resourceId('Microsoft.Batch/batchAccounts/certificates',parameters('batchAccountName'),variables('certName'))]"
+  },
+  "resources":
+  [
+    {
+      "name": "[parameters('storageAccountName')]",
+      "type": "Microsoft.Storage/storageAccounts",
+      "location": "[variables('location')]",
+      "apiVersion": "2016-01-01",
+      "sku":
+      {
+        "name": "[variables('storageAccountType')]"
+      },
+      "dependsOn":
+      [
+      ],
+      "tags":
+      {
+        "displayName": "storageAccount"
+      },
+      "kind": "Storage"
+    },
+    {
+      "name": "[parameters('batchAccountName')]",
+      "type": "Microsoft.Batch/batchAccounts",
+      "location": "[variables('location')]",
+      "apiVersion": "2017-09-01",
+      "scale": null,
+      "properties":
+      {
+        "autoStorage":
+        {
+          "storageAccountId": "[variables('storageAccountId')]"
+        },
+        "poolAllocationMode": "BatchService"
+      },
+      "dependsOn":
+      [
+        "[parameters('storageAccountName')]"
+      ],
+      "resources":
+      [
+        {
+          "name": "[variables('certName')]",
+          "type": "certificates",
+          "apiVersion": "2017-09-01",
+          "properties":
+          {
+            "thumbprintAlgorithm": "SHA1",
+            "thumbprint": "[parameters('certThumbprint')]",
+            "format": "Pfx",
+            "data": "[parameters('certBase64Data')]",
+            "password": "[parameters('certPassword')]"
+          },
+          "dependsOn":
+          [
+            "[parameters('batchAccountName')]"
+          ]
+        },
+        {
+          "name": "pool",
+          "type": "pools",
+          "apiVersion": "2017-09-01",
+          "dependsOn":
+          [
+            "[parameters('batchAccountName')]",
+            "[variables('certName')]"
+          ],
+          "properties":
+          {
+            "vmSize": "standard_a1",
+            "deploymentConfiguration":
+            {
+              "virtualMachineConfiguration":
+              {
+                "imageReference":
+                {
+                  "publisher": "MicrosoftWindowsServer",
+                  "offer": "WindowsServer",
+                  "sku": "2016-Datacenter"
+                },
+                "nodeAgentSkuId": "batch.node.windows amd64"
+              }
+
+            },
+            "scaleSettings":
+            {
+              "fixedScale":
+              {
+                "resizeTimeout": "PT15M",
+                "targetDedicatedNodes": 2,
+                "targetLowPriorityNodes": 0
+              }
+            },
+            "maxTasksPerNode": 2,
+            "taskSchedulingPolicy":
+            {
+              "nodeFillType": "Spread"
+            },            
+            "certificates":
+            [
+              {
+                "id": "[variables('certId')]",
+                "storeLocation": "CurrentUser",
+                "storeName": "My",
+                "visibility":
+                [
+                  "StartTask",
+                  "Task",
+                  "RemoteUser"
+                ]
+              }
+            ],
+            "metadata":
+            [
+              {
+                "name": "myproperty",
+                "value": "myvalue"
+              }
+            ]
+          }
+        }
+      ]
+    }
+  ],
+  "outputs":
+  {
+    "storageAccountId":
+    {
+      "type": "string",
+      "value": "[resourceId('Microsoft.Storage/storageAccounts',parameters('storageAccountName'))]"
+    }
+  }
+}
