@@ -118,15 +118,3 @@ else {
     }
 }
 
-#Custom logic appended to script
-if (!($ErrorMessages) -and !($ValidateOnly))
-{
-	#Create container if one doesn't exist
-	$batchStorageAccountName = $result.Parameters["storageAccountName"].Value
-	$batchStorageAccount = Get-AzureRmStorageAccount -ResourceGroupName $ResourceGroupName -Name $batchStorageAccountName
-	$batchStorageAccountContainerName = "customactivity"
-	New-AzureStorageContainer -Name $batchStorageAccountContainerName -Context $batchStorageAccount.Context -ErrorAction SilentlyContinue *>&1
-	
-	#Upload Console to storage account container
-
-}

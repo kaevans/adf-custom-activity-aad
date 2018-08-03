@@ -28,9 +28,30 @@ function Create-Application
     $app = Get-AzureRmADApplication -DisplayNameStartWith $appDisplayName
     if($app -eq $null)
     {
-        #Create a new Azure AD application registration. See https://azure.microsoft.com/en-us/resources/samples /active-directory-dotnet-daemon-certificate-credential        
+        #Create a new Azure AD application registration. See https://azure.microsoft.com/en-us/resources/samples/active-directory-dotnet-daemon-certificate-credential        
         $app = New-AzureRmADApplication -DisplayName $appDisplayName -IdentifierUris $appIdentifierUri -CertValue ([System.Convert]::ToBase64String($cert.GetRawCertData())) -StartDate $cert.NotBefore -EndDate $cert.NotAfter 
         $sp = New-AzureRmADServicePrincipal -ApplicationId $app.ApplicationId -CertValue ([System.Convert]::ToBase64String($cert.GetRawCertData())) -StartDate $cert.NotBefore -EndDate $cert.NotAfter        
+    }
+    else
+    {
+        $cred = Get-AzureRmADAppCredential -ApplicationId $app.ApplicationId
+        if($cred)
+        {
+            if(($cred.Type -eq "AsymmetricX509Cert") -and ($cred.StartDate -eq $cert.NotBefore) -and ($cred.EndDate -eq $cert.NotAfter))
+            {
+                #Assume certificate matches
+            }
+            else
+            {
+                Remove-AzureRmADAppCredential -ApplicationId $app.ApplicationId -KeyId $cred.KeyId
+            }
+        }
+        $cred = Get-AzureRmADAppCredential -ApplicationId $app.ApplicationId
+        if(!$cred)
+        {
+            #The credential was missing or was removed.            
+            New-AzureRmADAppCredential -ApplicationId ($app.ApplicationId) -CertValue ([System.Convert]::ToBase64String($cert.GetRawCertData())) -StartDate $cert.NotBefore -EndDate $cert.NotAfter
+        }
     }
     return $app
 }
